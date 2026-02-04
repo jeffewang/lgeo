@@ -317,7 +317,21 @@ st.markdown("""
     
     /* Ensure Streamlit metrics are hidden on mobile to avoid duplication */
     @media only screen and (max-width: 600px) {
+        /* Hide the specific metric containers */
         div[data-testid="metric-container"] {
+            display: none !important;
+        }
+        
+        /* Hide the column wrappers that hold the metrics on mobile.
+           Streamlit wraps columns in vertical blocks on mobile. 
+           We need to be careful not to hide other columns.
+           
+           Strategy: Hide the .desktop-only div parent if possible, but we can't select parent in CSS.
+           So we rely on the specific structure.
+        */
+        
+        /* Force hide elements inside the desktop-only markdown container if the class is applied */
+        .desktop-only {
             display: none !important;
         }
     }
@@ -391,39 +405,56 @@ else:
     
     # Desktop Layout (Streamlit Native)
     # Wrap in a container that will be hidden on mobile
-    with st.container():
-        st.markdown('<div class="desktop-only">', unsafe_allow_html=True)
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            st.metric("总监测次数", total_count, delta=f"+{total_count} New")
-        with m2:
-            st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
-        with m3:
-            st.metric("覆盖意图数", intent_count)
-        with m4:
-            st.metric("最大竞品", top_comp)
-        st.markdown('</div>', unsafe_allow_html=True)
+    # NOTE: Streamlit's st.container() doesn't add a class we can target easily.
+    # But content inside it is rendered sequentially.
+    # We will use a different approach: Conditional Rendering based on a checkbox hack or just accept duplicate calculation.
+    # BETTER APPROACH: Use st.empty() or just render normally and use strict CSS targeting.
+    
+    # We wrap the desktop metrics in a specific div that we CAN target
+    st.markdown('<div class="desktop-metrics-wrapper">', unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("总监测次数", total_count, delta=f"+{total_count} New")
+    with m2:
+        st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
+    with m3:
+        st.metric("覆盖意图数", intent_count)
+    with m4:
+        st.metric("最大竞品", top_comp)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # CSS to hide the desktop container on mobile
+    # CSS to hide the desktop wrapper on mobile
     st.markdown("""
     <style>
     @media only screen and (max-width: 600px) {
-        .desktop-only {
+        /* This targets the div we just added */
+        .desktop-metrics-wrapper {
             display: none !important;
         }
-        /* Also hide the parent container of the metrics if possible, 
-           but since we can't easily target the specific st.columns container via CSS class from here,
-           we rely on the data-testid="metric-container" rule added in the main style block.
+        
+        /* 
+           CRITICAL: Streamlit puts the markdown div BEFORE and AFTER the columns, 
+           but the columns themselves are siblings, not children.
+           So the wrapper above DOES NOT WORK for hiding the columns in between.
            
-           However, to be doubly sure, we can try to hide the specific div structure if we wrap it.
-           The 'desktop-only' div above only wraps the content *inside* the markdown, not the st.columns itself.
+           SOLUTION: We must rely on targeting the metrics themselves as we did before.
+           If they are still showing, it means the CSS selector `div[data-testid="metric-container"]` 
+           is not matching or being overridden.
            
-           CORRECTION: st.markdown cannot wrap st.columns. 
-           We need to rely on the CSS rule `div[data-testid="metric-container"] { display: none !important; }`
-           which we already added in the main style block. 
-           
-           To make sure the spacing is correct, we might need to hide the vertical stack container.
+           Let's try a more aggressive selector targeting the stMetric value directly's parent.
         */
+        
+        /* Hide any element that looks like a Streamlit metric on mobile */
+        [data-testid="stMetric"] {
+            display: none !important;
+        }
+    }
+    
+    @media only screen and (min-width: 601px) {
+        /* On desktop, make sure they are visible */
+        [data-testid="stMetric"] {
+            display: block !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
