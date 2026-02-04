@@ -280,14 +280,14 @@ else:
     df = pd.DataFrame(all_data)
     
     # Overview Cards
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("总监测次数", len(df))
-        with col2:
-            mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
-            st.metric("联想提及率", f"{mention_rate:.1f}%")
-        with col3:
-            st.metric("覆盖意图数", df['intent'].nunique())
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("总监测次数", len(df))
+    with col2:
+        mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
+        st.metric("联想提及率", f"{mention_rate:.1f}%")
+    with col3:
+        st.metric("覆盖意图数", df['intent'].nunique())
             
         # Charts
         c1, c2 = st.columns(2)
