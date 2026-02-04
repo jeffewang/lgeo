@@ -293,86 +293,103 @@ else:
     df = pd.DataFrame(all_data)
     
     # Overview Cards
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("总监测次数", len(df))
-    with col2:
+    # Use a 4-column layout for high-level metrics
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("总监测次数", len(df), delta=f"+{len(df)} New")
+    with m2:
         mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
-        st.metric("联想提及率", f"{mention_rate:.1f}%")
-    with col3:
+        st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
+    with m3:
         st.metric("覆盖意图数", df['intent'].nunique())
+    with m4:
+        # Calculate top competitor
+        all_comps = [item for sublist in df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
+        top_comp = Counter(all_comps).most_common(1)[0][0] if all_comps else "无"
+        st.metric("最大竞品", top_comp)
             
-        # Charts
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("各平台提及率对比")
-            platform_stats = df.groupby('platform')['is_mentioned'].mean().reset_index()
-            platform_stats['is_mentioned'] *= 100
-            fig = px.bar(platform_stats, x='platform', y='is_mentioned', 
-                         labels={'platform': '监测平台', 'is_mentioned': '提及率 (%)'},
-                         title='各平台联想提及率对比')
-            st.plotly_chart(fig, use_container_width=True)
-            
-        with c2:
-            st.subheader("热门竞品排行")
-            # 过滤掉非列表的数据（处理历史遗留数据或异常数据）
-            all_comps = [item for sublist in df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
-            comp_df = pd.DataFrame(Counter(all_comps).most_common(10), columns=['公司', '次数'])
-            fig2 = px.pie(comp_df, values='次数', names='公司', title='竞品提及频率分析')
-            st.plotly_chart(fig2, use_container_width=True)
-            
-        # --- 意图深度透视 ---
-        st.markdown("---")
-        st.header("🎯 意图深度透视")
+    st.markdown("---")
+
+    # Top Level Charts (Side by Side)
+    c1, c2 = st.columns([3, 2])
+    with c1:
+        st.subheader("📊 各平台提及率对比")
+        platform_stats = df.groupby('platform')['is_mentioned'].mean().reset_index()
+        platform_stats['is_mentioned'] *= 100
+        fig = px.bar(platform_stats, x='platform', y='is_mentioned', 
+                        labels={'platform': '监测平台', 'is_mentioned': '提及率 (%)'},
+                        color='is_mentioned', color_continuous_scale='Blues')
+        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', height=400)
+        st.plotly_chart(fig, use_container_width=True)
         
+    with c2:
+        st.subheader("🍩 热门竞品份额")
+        comp_df = pd.DataFrame(Counter(all_comps).most_common(8), columns=['公司', '次数'])
+        fig2 = px.pie(comp_df, values='次数', names='公司', hole=0.4)
+        fig2.update_layout(height=400, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+        st.plotly_chart(fig2, use_container_width=True)
+            
+    # --- 意图深度透视 ---
+    st.markdown("---")
+    st.header("🎯 意图深度透视")
+    
+    # Create a container for the deep dive section with a distinct background
+    with st.container():
         selected_intent = st.selectbox("选择要分析的意图", df['intent'].unique())
         intent_df = df[df['intent'] == selected_intent]
         
-        # 1. 意图概览指标与平台特性分析
-        i_col1, i_col2, i_col3 = st.columns(3)
-        with i_col1:
-            st.metric(f"【{selected_intent}】监测样本", len(intent_df))
-        with i_col2:
+        # 1. Intent Metrics Row
+        i1, i2, i3 = st.columns(3)
+        with i1:
+            st.metric(f"【{selected_intent}】样本量", len(intent_df))
+        with i2:
             i_mention_rate = (intent_df['is_mentioned'].sum() / len(intent_df)) * 100
-            st.metric("联想在该意图下的曝光权重", f"{i_mention_rate:.1f}%")
-        with i_col3:
-            # 识别表现最好的平台
+            st.metric("该意图下曝光权重", f"{i_mention_rate:.1f}%")
+        with i3:
             p_mentions = intent_df.groupby('platform')['is_mentioned'].mean().sort_values(ascending=False)
             best_p = p_mentions.index[0] if not p_mentions.empty else "N/A"
-            st.metric("最具曝光潜力平台", best_p)
+            st.metric("最佳表现平台", best_p)
 
-        # 平台特性贴纸 (基于 China GEO Strategy 2.0)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # 2. Platform Insights Grid (2x2)
         st.write("**🔍 平台特性洞察 (GEO 2.0 映射)**")
-        p_cols = st.columns(len(intent_df['platform'].unique()))
+        
         platform_guides = {
-            "DeepSeek": "💼 <span style='font-weight:bold;'>商用决策导向</span><br>侧重 MECE 框架与 SWOT 分析，内容需强调商业逻辑。",
-            "Kimi": "📚 <span style='font-weight:bold;'>长文本技术导向</span><br>侧重深度技术文档与权威引用（arXiv/IEEE），内容需具备专业厚度。",
-            "Doubao": "📱 <span style='font-weight:bold;'>社交流行导向</span><br>侧重情感化表达与爆点叙事，内容需具备传播力。",
-            "Yuanbao": "🔗 <span style='font-weight:bold;'>全生态链路导向</span><br>侧重微信生态内容联动，内容需具备多点触达能力。"
+            "DeepSeek": ("💼 商用决策导向", "侧重 MECE 框架与 SWOT 分析，内容需强调商业逻辑。"),
+            "Kimi": ("📚 长文本技术导向", "侧重深度技术文档与权威引用（arXiv/IEEE），内容需具备专业厚度。"),
+            "Doubao": ("📱 社交流行导向", "侧重情感化表达与爆点叙事，内容需具备传播力。"),
+            "Yuanbao": ("🔗 全生态链路导向", "侧重微信生态内容联动，内容需具备多点触达能力。")
         }
         
-        for i, p_name in enumerate(intent_df['platform'].unique()):
-            with p_cols[i % len(p_cols)]:
-                p_rate = p_mentions.get(p_name, 0) * 100
-                guide_content = platform_guides.get(p_name, '通用优化建议：增强内容 E-E-A-T 权重。')
-                
-                # UX Improvement: Card-based layout for platform guides
-                st.markdown(f"""
-                <div class="platform-card">
-                    <div style="font-size: 1.2em; font-weight: bold; color: #333; margin-bottom: 5px;">
-                        {p_name} <span style="float: right; color: #E2231A;">{p_rate:.0f}%</span>
+        # Grid Layout for Cards
+        unique_platforms = intent_df['platform'].unique()
+        rows = [unique_platforms[i:i + 2] for i in range(0, len(unique_platforms), 2)]
+        
+        for row in rows:
+            cols = st.columns(2)
+            for idx, p_name in enumerate(row):
+                with cols[idx]:
+                    p_rate = p_mentions.get(p_name, 0) * 100
+                    title, desc = platform_guides.get(p_name, ('通用平台', '建议增强 E-E-A-T'))
+                    
+                    st.markdown(f"""
+                    <div class="platform-card" style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 1.1em; font-weight: bold; color: #333;">{p_name}</span>
+                            <span style="background-color: #E2231A; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">{p_rate:.0f}% 提及</span>
+                        </div>
+                        <div style="font-weight: 600; color: #555; margin-bottom: 4px;">{title}</div>
+                        <div style="font-size: 0.9em; color: #777;">{desc}</div>
                     </div>
-                    <div style="font-size: 0.9em; color: #555; line-height: 1.4;">
-                        {guide_content}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
-        # 2. 核心图表
-        col_left, col_right = st.columns([1, 1])
+        # 3. Deep Dive Charts
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_left, col_right = st.columns(2)
         
         with col_left:
-            st.subheader("📊 竞对声量分布")
+            st.subheader("📊 细分竞对分布")
             i_comps_all = [item for sublist in intent_df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
             if i_comps_all:
                 i_comp_df = pd.DataFrame(Counter(i_comps_all).most_common(10), columns=['公司', '出现次数'])
@@ -381,7 +398,7 @@ else:
                 fig_i.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', height=350)
                 st.plotly_chart(fig_i, use_container_width=True)
             else:
-                st.write("该意图下暂无竞对数据")
+                st.info("该意图下暂无竞对数据")
                 
         with col_right:
             st.subheader("🔗 优质信源画像")
@@ -405,7 +422,7 @@ else:
                 fig_src_i.update_layout(yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)', height=350)
                 st.plotly_chart(fig_src_i, use_container_width=True)
             else:
-                st.write("该意图下暂无信源数据")
+                st.info("该意图下暂无信源数据")
 
         # 3. 策略实战与详情 (回归上下布局，确保空间充足)
         st.markdown("---")
