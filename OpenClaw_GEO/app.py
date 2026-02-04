@@ -335,13 +335,15 @@ else:
     
     # Create a container for the deep dive section with a distinct background
     with st.container():
-        # Replace selectbox with pills for better UX
+        # Replace st.pills with st.radio (horizontal) for better stability
         all_intents = df['intent'].unique()
-        selected_intent = st.pills("选择要分析的意图", all_intents, selection_mode="single", default=all_intents[0] if len(all_intents) > 0 else None)
-        
-        # Fallback if pills return None (though default is set)
-        if not selected_intent and len(all_intents) > 0:
-            selected_intent = all_intents[0]
+        # Use horizontal radio buttons to simulate tabs/pills
+        selected_intent = st.radio(
+            "选择要分析的意图", 
+            all_intents, 
+            horizontal=True,
+            label_visibility="collapsed"
+        )
             
         intent_df = df[df['intent'] == selected_intent]
         
