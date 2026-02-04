@@ -19,12 +19,33 @@ if not os.path.exists(DATA_DIR):
 
 # --- Helper Functions ---
 def load_config():
-    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    # 1. Load basic structure from file (fallback)
+    config = {}
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    else:
+        # Load from example if real config is missing (for cloud deployment)
+        example_path = os.path.join(BASE_DIR, "config.example.json")
+        if os.path.exists(example_path):
+            with open(example_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+    # 2. Override with Streamlit Secrets if available (Secure Cloud Deployment)
+    if hasattr(st, "secrets"):
+        if "providers" in st.secrets:
+            for p_name, p_secrets in st.secrets["providers"].items():
+                if p_name in config["providers"] and "api_key" in p_secrets:
+                    config["providers"][p_name]["api_key"] = p_secrets["api_key"]
+    
+    return config
 
 def save_config(config):
-    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    # WARNING: Saving config to file in Cloud is temporary and not secure.
+    # We only save to file if we are running locally (checked by presence of config.json)
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
 
 def extract_competitors(answer):
     competitors = ["华为", "小米", "阿里", "腾讯", "百度", "字节", "京东", "海尔", "美的", "比亚迪", "大疆", "宁德时代", "联想"]
@@ -252,25 +273,48 @@ with tab2:
     
     with st.form("config_form"):
         st.caption("请配置各家大模型的 API 密钥以开启监测。")
+        st.info("🔒 为了安全，建议在 Streamlit Cloud 的 Secrets 中配置密钥，不要在此处直接填写。")
         
         # Use a more compact layout
         cols = st.columns(2)
         idx = 0
         for p_name, p_config in config['providers'].items():
             with cols[idx % 2]:
-                new_key = st.text_input(
-                    f"{p_name} API Key", 
-                    value=p_config.get('api_key', ''), 
-                    type="password", 
-                    help=f"输入 {p_name} 的 API 密钥"
-                )
-                config['providers'][p_name]['api_key'] = new_key
+                # Check if key is loaded from secrets
+                is_secret = False
+                if hasattr(st, "secrets") and "providers" in st.secrets:
+                    if p_name in st.secrets["providers"] and "api_key" in st.secrets["providers"][p_name]:
+                        is_secret = True
+                
+                # Display logic: If secret, hide value and disable (or show placeholder)
+                current_val = p_config.get('api_key', '')
+                
+                if is_secret:
+                    st.text_input(
+                        f"{p_name} API Key", 
+                        value="configured_in_secrets_do_not_change", 
+                        type="password", 
+                        disabled=True,
+                        help=f"✅ {p_name} 密钥已通过 Secrets 安全配置"
+                    )
+                else:
+                    new_key = st.text_input(
+                        f"{p_name} API Key", 
+                        value=current_val, 
+                        type="password", 
+                        help=f"输入 {p_name} 的 API 密钥 (本地模式)"
+                    )
+                    config['providers'][p_name]['api_key'] = new_key
             idx += 1
         
         st.markdown("<br>", unsafe_allow_html=True)
+        # Only show save button if not fully managed by secrets (or mixed)
         if st.form_submit_button("💾 保存全系统配置", type="primary"):
             save_config(config)
-            st.success("✅ 配置已成功更新！")
+            if not os.path.exists(CONFIG_PATH):
+                 st.warning("☁️ 云端模式下，修改仅对当前会话生效。请使用 Secrets 管理密钥。")
+            else:
+                 st.success("✅ 配置已成功更新！")
 
 # --- Tab 1: Dashboard ---
 with tab1:

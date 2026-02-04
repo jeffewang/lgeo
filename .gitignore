@@ -1,0 +1,7 @@
+OpenClaw_GEO/config.json
+OpenClaw_GEO/data/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.venv
