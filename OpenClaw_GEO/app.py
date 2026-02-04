@@ -236,6 +236,40 @@ st.markdown("""
         border: 1px solid #EEE;
     }
     
+    /* Mobile Responsiveness */
+    @media only screen and (max-width: 600px) {
+        .block-container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        
+        /* Adjust font sizes for mobile */
+        h1 {
+            font-size: 1.25rem !important;
+        }
+        
+        h3 {
+            font-size: 1.1rem !important;
+        }
+        
+        /* Ensure charts take full width and handle overflow */
+        .js-plotly-plot {
+            width: 100% !important;
+        }
+        
+        /* Stack columns on mobile (Streamlit does this automatically for st.columns, 
+           but we can fine-tune custom elements) */
+        .strategy-box {
+            padding: 10px;
+        }
+        
+        /* Improve metric card spacing on mobile */
+        div[data-testid="metric-container"] {
+            padding: 10px;
+            margin-bottom: 5px;
+        }
+    }
+    
     </style>
     """, unsafe_allow_html=True)
 
@@ -319,15 +353,28 @@ else:
         fig = px.bar(platform_stats, x='platform', y='is_mentioned', 
                         labels={'platform': '监测平台', 'is_mentioned': '提及率 (%)'},
                         color='is_mentioned', color_continuous_scale='Blues')
-        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        # Responsive chart layout
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', 
+            height=300 if st.session_state.get('is_mobile', False) else 400,
+            margin=dict(l=10, r=10, t=30, b=10),
+            autosize=True
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'responsive': True, 'displayModeBar': False})
         
     with c2:
         st.subheader("🍩 热门竞品份额")
         comp_df = pd.DataFrame(Counter(all_comps).most_common(8), columns=['公司', '次数'])
         fig2 = px.pie(comp_df, values='次数', names='公司', hole=0.4)
-        fig2.update_layout(height=400, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-        st.plotly_chart(fig2, use_container_width=True)
+        # Responsive chart layout with adjusted legend
+        fig2.update_layout(
+            height=300 if st.session_state.get('is_mobile', False) else 400, 
+            showlegend=True, 
+            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+            margin=dict(l=10, r=10, t=30, b=10),
+            autosize=True
+        )
+        st.plotly_chart(fig2, use_container_width=True, config={'responsive': True, 'displayModeBar': False})
             
     # --- 意图深度透视 ---
     st.markdown("---")
