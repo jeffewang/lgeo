@@ -263,10 +263,18 @@ st.markdown("""
             padding: 10px;
         }
         
-        /* Improve metric card spacing on mobile */
+        /* Improve metric card spacing on mobile and prevent vertical stacking issues */
         div[data-testid="metric-container"] {
             padding: 10px;
             margin-bottom: 5px;
+            /* Ensure text wraps properly inside metrics */
+            white-space: normal; 
+            overflow-wrap: break-word;
+        }
+        
+        /* Fix for long metric values pushing layout */
+        div[data-testid="stMetricValue"] {
+            font-size: 1.2rem !important;
         }
     }
     
