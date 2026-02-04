@@ -315,6 +315,13 @@ st.markdown("""
         }
     }
     
+    /* Ensure Streamlit metrics are hidden on mobile to avoid duplication */
+    @media only screen and (max-width: 600px) {
+        div[data-testid="metric-container"] {
+            display: none !important;
+        }
+    }
+    
     </style>
     """, unsafe_allow_html=True)
 
@@ -383,9 +390,8 @@ else:
     top_comp = Counter(all_comps).most_common(1)[0][0] if all_comps else "无"
     
     # Desktop Layout (Streamlit Native)
-    desktop_container = st.container()
-    with desktop_container:
-        # This div will be hidden on mobile via CSS
+    # Wrap in a container that will be hidden on mobile
+    with st.container():
         st.markdown('<div class="desktop-only">', unsafe_allow_html=True)
         m1, m2, m3, m4 = st.columns(4)
         with m1:
@@ -397,6 +403,30 @@ else:
         with m4:
             st.metric("最大竞品", top_comp)
         st.markdown('</div>', unsafe_allow_html=True)
+
+    # CSS to hide the desktop container on mobile
+    st.markdown("""
+    <style>
+    @media only screen and (max-width: 600px) {
+        .desktop-only {
+            display: none !important;
+        }
+        /* Also hide the parent container of the metrics if possible, 
+           but since we can't easily target the specific st.columns container via CSS class from here,
+           we rely on the data-testid="metric-container" rule added in the main style block.
+           
+           However, to be doubly sure, we can try to hide the specific div structure if we wrap it.
+           The 'desktop-only' div above only wraps the content *inside* the markdown, not the st.columns itself.
+           
+           CORRECTION: st.markdown cannot wrap st.columns. 
+           We need to rely on the CSS rule `div[data-testid="metric-container"] { display: none !important; }`
+           which we already added in the main style block. 
+           
+           To make sure the spacing is correct, we might need to hide the vertical stack container.
+        */
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     # Mobile Layout (Custom HTML/CSS)
     st.markdown(f"""
