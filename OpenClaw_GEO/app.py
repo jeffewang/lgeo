@@ -236,45 +236,82 @@ st.markdown("""
         border: 1px solid #EEE;
     }
     
-    /* Mobile Responsiveness */
+    /* Mobile Responsiveness - App-like Design */
     @media only screen and (max-width: 600px) {
         .block-container {
-            padding-left: 0.5rem;
-            padding-right: 0.5rem;
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
+            padding-top: 1rem;
         }
         
-        /* Adjust font sizes for mobile */
-        h1 {
-            font-size: 1.25rem !important;
+        /* Hide default Streamlit metrics on mobile to use custom card layout */
+        div[data-testid="metric-container"] {
+            display: none !important;
         }
         
-        h3 {
-            font-size: 1.1rem !important;
+        /* Typography adjustments */
+        h1 { font-size: 1.4rem !important; margin-bottom: 0.5rem !important; }
+        h3 { font-size: 1.1rem !important; margin-top: 1rem !important; }
+        
+        /* Mobile Card Styling */
+        .mobile-metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border: 1px solid #f0f0f0;
         }
         
-        /* Ensure charts take full width and handle overflow */
+        .mobile-metric-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .mobile-metric-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #E2231A;
+        }
+        
+        .mobile-metric-delta {
+            font-size: 0.75rem;
+            color: #28a745;
+            background: #e6f4ea;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 4px;
+            width: fit-content;
+        }
+        
+        /* Grid for mobile metrics */
+        .mobile-metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        /* Charts */
         .js-plotly-plot {
             width: 100% !important;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+            background: white;
+            margin-bottom: 15px;
         }
-        
-        /* Stack columns on mobile (Streamlit does this automatically for st.columns, 
-           but we can fine-tune custom elements) */
-        .strategy-box {
-            padding: 10px;
-        }
-        
-        /* Improve metric card spacing on mobile and prevent vertical stacking issues */
-        div[data-testid="metric-container"] {
-            padding: 10px;
-            margin-bottom: 5px;
-            /* Ensure text wraps properly inside metrics */
-            white-space: normal; 
-            overflow-wrap: break-word;
-        }
-        
-        /* Fix for long metric values pushing layout */
-        div[data-testid="stMetricValue"] {
-            font-size: 1.2rem !important;
+    }
+    
+    /* Desktop only styles */
+    @media only screen and (min-width: 601px) {
+        .mobile-only {
+            display: none !important;
         }
     }
     
@@ -335,20 +372,55 @@ else:
     df = pd.DataFrame(all_data)
     
     # Overview Cards
-    # Use a 4-column layout for high-level metrics
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("总监测次数", len(df), delta=f"+{len(df)} New")
-    with m2:
-        mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
-        st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
-    with m3:
-        st.metric("覆盖意图数", df['intent'].nunique())
-    with m4:
-        # Calculate top competitor
-        all_comps = [item for sublist in df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
-        top_comp = Counter(all_comps).most_common(1)[0][0] if all_comps else "无"
-        st.metric("最大竞品", top_comp)
+    # Use a 4-column layout for high-level metrics (Desktop)
+    # For mobile, we use a custom HTML grid to ensure 2x2 layout
+    
+    # Calculate metrics first
+    total_count = len(df)
+    mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
+    intent_count = df['intent'].nunique()
+    all_comps = [item for sublist in df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
+    top_comp = Counter(all_comps).most_common(1)[0][0] if all_comps else "无"
+    
+    # Desktop Layout (Streamlit Native)
+    desktop_container = st.container()
+    with desktop_container:
+        # This div will be hidden on mobile via CSS
+        st.markdown('<div class="desktop-only">', unsafe_allow_html=True)
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric("总监测次数", total_count, delta=f"+{total_count} New")
+        with m2:
+            st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
+        with m3:
+            st.metric("覆盖意图数", intent_count)
+        with m4:
+            st.metric("最大竞品", top_comp)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Mobile Layout (Custom HTML/CSS)
+    st.markdown(f"""
+    <div class="mobile-only mobile-metrics-grid">
+        <div class="mobile-metric-card">
+            <div class="mobile-metric-label">总监测次数</div>
+            <div class="mobile-metric-value">{total_count}</div>
+            <div class="mobile-metric-delta">+{total_count} New</div>
+        </div>
+        <div class="mobile-metric-card">
+            <div class="mobile-metric-label">联想提及率</div>
+            <div class="mobile-metric-value">{mention_rate:.1f}%</div>
+            <div class="mobile-metric-delta">核心指标</div>
+        </div>
+        <div class="mobile-metric-card">
+            <div class="mobile-metric-label">覆盖意图数</div>
+            <div class="mobile-metric-value">{intent_count}</div>
+        </div>
+        <div class="mobile-metric-card">
+            <div class="mobile-metric-label">最大竞品</div>
+            <div class="mobile-metric-value">{top_comp}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
             
     st.markdown("---")
 
