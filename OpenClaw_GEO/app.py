@@ -383,9 +383,32 @@ st.markdown("### 📊 实时监测仪表盘")
 # --- Dashboard Logic ---
 files = [f for f in os.listdir(DATA_DIR) if f.endswith('_results.json')]
 all_data = []
+last_updated = None
+
+# Sort files to get the latest one
+files.sort(reverse=True)
+
+if files:
+    # Extract timestamp from the latest file name (YYYYMMDD_results.json)
+    # Or better, look at the modification time or data inside
+    try:
+        # Assuming filename format is YYYYMMDD_results.json, but we want precise time
+        # Let's read the latest file to get the last timestamp
+        with open(os.path.join(DATA_DIR, files[0]), 'r', encoding='utf-8') as f:
+            latest_file_data = json.load(f)
+            if latest_file_data:
+                # Sort by timestamp in descending order
+                latest_entry = sorted(latest_file_data, key=lambda x: x['timestamp'], reverse=True)[0]
+                last_updated = datetime.fromisoformat(latest_entry['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+    except Exception as e:
+        pass
+
 for f in files:
     with open(os.path.join(DATA_DIR, f), 'r', encoding='utf-8') as file:
         all_data.extend(json.load(file))
+
+if last_updated:
+    st.caption(f"🕒 数据最后更新于: {last_updated}")
 
 if not all_data:
     st.info("暂无监测数据，请先在左侧启动监测任务。")
