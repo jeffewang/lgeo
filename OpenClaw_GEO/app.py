@@ -263,73 +263,23 @@ with st.sidebar:
             st.session_state.logs = []
         log_placeholder.code("\n".join(st.session_state.logs[-15:]) if st.session_state.logs else "等待任务启动...")
 
-# --- Main Tabs ---
-tab1, tab2 = st.tabs(["📊 实时仪表盘", "⚙️ 系统配置"])
+# --- Main Layout ---
+# Only show Dashboard, remove Configuration tab from UI for security
+st.markdown("### 📊 实时监测仪表盘")
 
-# --- Tab 2: Configuration ---
-with tab2:
-    st.markdown("### ⚙️ 系统参数配置")
-    config = load_config()
-    
-    with st.form("config_form"):
-        st.caption("请配置各家大模型的 API 密钥以开启监测。")
-        st.info("🔒 为了安全，建议在 Streamlit Cloud 的 Secrets 中配置密钥，不要在此处直接填写。")
-        
-        # Use a more compact layout
-        cols = st.columns(2)
-        idx = 0
-        for p_name, p_config in config['providers'].items():
-            with cols[idx % 2]:
-                # Check if key is loaded from secrets
-                is_secret = False
-                if hasattr(st, "secrets") and "providers" in st.secrets:
-                    if p_name in st.secrets["providers"] and "api_key" in st.secrets["providers"][p_name]:
-                        is_secret = True
-                
-                # Display logic: If secret, hide value and disable (or show placeholder)
-                current_val = p_config.get('api_key', '')
-                
-                if is_secret:
-                    st.text_input(
-                        f"{p_name} API Key", 
-                        value="configured_in_secrets_do_not_change", 
-                        type="password", 
-                        disabled=True,
-                        help=f"✅ {p_name} 密钥已通过 Secrets 安全配置"
-                    )
-                else:
-                    new_key = st.text_input(
-                        f"{p_name} API Key", 
-                        value=current_val, 
-                        type="password", 
-                        help=f"输入 {p_name} 的 API 密钥 (本地模式)"
-                    )
-                    config['providers'][p_name]['api_key'] = new_key
-            idx += 1
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        # Only show save button if not fully managed by secrets (or mixed)
-        if st.form_submit_button("💾 保存全系统配置", type="primary"):
-            save_config(config)
-            if not os.path.exists(CONFIG_PATH):
-                 st.warning("☁️ 云端模式下，修改仅对当前会话生效。请使用 Secrets 管理密钥。")
-            else:
-                 st.success("✅ 配置已成功更新！")
+# --- Dashboard Logic ---
+files = [f for f in os.listdir(DATA_DIR) if f.endswith('_results.json')]
+all_data = []
+for f in files:
+    with open(os.path.join(DATA_DIR, f), 'r', encoding='utf-8') as file:
+        all_data.extend(json.load(file))
 
-# --- Tab 1: Dashboard ---
-with tab1:
-    files = [f for f in os.listdir(DATA_DIR) if f.endswith('_results.json')]
-    all_data = []
-    for f in files:
-        with open(os.path.join(DATA_DIR, f), 'r', encoding='utf-8') as file:
-            all_data.extend(json.load(file))
+if not all_data:
+    st.info("暂无监测数据，请先在左侧启动监测任务。")
+else:
+    df = pd.DataFrame(all_data)
     
-    if not all_data:
-        st.info("暂无监测数据，请先在左侧启动监测任务。")
-    else:
-        df = pd.DataFrame(all_data)
-        
-        # Overview Cards
+    # Overview Cards
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("总监测次数", len(df))
