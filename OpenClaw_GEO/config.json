@@ -1,0 +1,89 @@
+{
+  "project_name": "Lenovo GEO Optimization System",
+  "version": "2.0.0",
+  "providers": {
+    "Deepseek": {
+      "enabled": true,
+      "base_url": "https://api.deepseek.com",
+      "model": "deepseek-chat",
+      "api_key": "sk-3fa2836db4f64c7aa789c4c70aac11b7"
+    },
+    "Kimi": {
+      "enabled": true,
+      "base_url": "https://api.moonshot.cn/v1",
+      "model": "moonshot-v1-8k",
+      "api_key": "sk-C2tKHdJ3jDF5fZcDoi2tFvJA2EnWa1yhwPO9hYKpfhFk4LRz"
+    },
+    "Doubao": {
+      "enabled": true,
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "model": "ep-202406040000-00000",
+      "api_key": "ep-20260203085849-zv9bq"
+    },
+    "Yuanbao": {
+      "enabled": true,
+      "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+      "model": "hunyuan-lite",
+      "api_key": "sk-sBZ3Jz5Fr0tiCKYArbyxRIdacsN0fBJHvevpys06fmV0czGX"
+    }
+  },
+  "intents": [
+    {
+      "name": "globalization",
+      "label": "全球化/出海",
+      "keywords": [
+        "全球化",
+        "出海",
+        "跨国公司",
+        "供应链"
+      ],
+      "questions": []
+    },
+    {
+      "name": "esg",
+      "label": "ESG/可持续发展",
+      "keywords": [
+        "ESG",
+        "碳中和",
+        "绿色",
+        "可持续",
+        "社会责任"
+      ],
+      "questions": []
+    },
+    {
+      "name": "ai",
+      "label": "AI/人工智能",
+      "keywords": [
+        "AI",
+        "人工智能",
+        "大模型",
+        "算力",
+        "混合式AI"
+      ],
+      "questions": []
+    },
+    {
+      "name": "culture",
+      "label": "企业文化",
+      "keywords": [
+        "企业文化",
+        "员工关怀",
+        "福利",
+        "工作环境"
+      ],
+      "questions": []
+    },
+    {
+      "name": "innovation",
+      "label": "产品技术与解决方案创新",
+      "keywords": [
+        "创新",
+        "黑科技",
+        "研发",
+        "专利"
+      ],
+      "questions": []
+    }
+  ]
+}

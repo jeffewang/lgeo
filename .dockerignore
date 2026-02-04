@@ -1,0 +1,7 @@
+.git
+__pycache__
+*.pyc
+.streamlit
+data/*.json
+config.json
+.DS_Store
