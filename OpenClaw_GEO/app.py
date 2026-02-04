@@ -159,6 +159,13 @@ st.markdown("""
         background-color: #FAFAFA;
     }
     
+    /* Optimize Main Container Width */
+    .block-container {
+        max-width: 1200px;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+
     /* Branding Colors */
     :root {
         --lenovo-red: #E2231A;
