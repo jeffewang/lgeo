@@ -27,6 +27,12 @@
       "api_key": "sk-sBZ3Jz5Fr0tiCKYArbyxRIdacsN0fBJHvevpys06fmV0czGX"
     }
   },
+  "feishu": {
+    "app_id": "cli_xxxxxxxxxxxx",
+    "app_secret": "xxxxxxxxxxxxxxxxxxxxxxxx",
+    "verification_token": "xxxxxxxxxxxxxxxxxxxxxxxx",
+    "encrypt_key": ""
+  },
   "intents": [
     {
       "name": "globalization",

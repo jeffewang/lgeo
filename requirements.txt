@@ -1,3 +1,6 @@
 streamlit
 pandas
 plotly
+lark-oapi
+flask
+requests

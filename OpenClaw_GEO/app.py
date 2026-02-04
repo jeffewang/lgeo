@@ -80,6 +80,22 @@ def extract_sources_v2(answer):
             
     return sources
 
+def format_strategy_text(text):
+    if not text: return ""
+    # 1. Handle Headers (### Title) -> <h4>Title</h4>
+    text = re.sub(r'###\s*(.+)', r'<h4 style="color: #E2231A; margin-top: 15px; margin-bottom: 10px;">\1</h4>', text)
+    # 2. Handle Bold (**Text**) -> <strong>Text</strong>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    # 3. Handle Lists (* Item or - Item) -> • Item
+    text = re.sub(r'^\s*[\*\-]\s+(.+)', r'<div style="margin-left: 15px; margin-bottom: 5px;">• \1</div>', text, flags=re.MULTILINE)
+    # 4. Handle Numbered Lists (1. Item) -> 1. Item (styled)
+    text = re.sub(r'^\s*(\d+\.)\s+(.+)', r'<div style="margin-left: 15px; margin-bottom: 5px;"><b>\1</b> \2</div>', text, flags=re.MULTILINE)
+    # 5. Convert remaining newlines to <br> if not inside tags (simple approach: just ensure spacing)
+    # Actually, the div approach above handles newlines for lists. For paragraphs, we might need <br>
+    # Let's just replace double newlines with <br><br> for paragraphs that weren't caught
+    text = text.replace('\n\n', '<br>')
+    return text
+
 def save_result(intent_name, platform, question, answer, timestamp, strategy_analysis=None, structured_sources=None):
     filename = f"{datetime.now().strftime('%Y%m%d')}_results.json"
     filepath = os.path.join(DATA_DIR, filename)
@@ -106,29 +122,91 @@ def save_result(intent_name, platform, question, answer, timestamp, strategy_ana
     return is_mentioned
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="联想集团 GEO 优化系统", layout="wide")
+st.set_page_config(page_title="联想集团 GEO 优化系统", layout="wide", page_icon="🛡️")
 
-# 隐藏 Streamlit 原生菜单和按钮，并增强文字对比度
+# UX Optimization: Enhanced Visual Design & CSS
 st.markdown("""
     <style>
+    /* Global Reset & Fonts */
+    .main {
+        background-color: #FAFAFA;
+    }
+    
+    /* Branding Colors */
+    :root {
+        --lenovo-red: #E2231A;
+        --lenovo-black: #000000;
+        --lenovo-gray: #B4B4B4;
+    }
+    
+    /* Hide Default Streamlit Elements */
     #MainMenu {display: none !important;}
     footer {display: none !important;}
     .stAppDeployButton {display: none !important;}
     
-    /* 强制增强文字颜色 */
-    h1, h2, h3, p, span, label, .stMarkdown {
-        color: #31333F !important;
+    /* Custom Metric Cards */
+    div[data-testid="metric-container"] {
+        background-color: white;
+        border: 1px solid #E0E0E0;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: transform 0.2s ease;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     
-    /* 仪表盘卡片数字颜色 */
-    [data-testid="stMetricValue"] {
-        color: #0E1117 !important;
-        font-weight: bold !important;
+    /* Typography Overrides */
+    .stMetricLabel {
+        font-size: 14px !important;
+        color: #666 !important;
+        font-weight: 500 !important;
     }
+    .stMetricValue { 
+        color: #E2231A !important; 
+        font-weight: 700 !important;
+    }
+    
+    /* Buttons */
+    .stButton>button { 
+        border-radius: 6px; 
+        font-weight: 600;
+        border: none;
+    }
+    
+    /* Strategy Box Styling */
+    .strategy-box {
+        background-color: #FFFFFF;
+        border-left: 5px solid #E2231A;
+        border-radius: 4px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-top: 10px;
+        margin-bottom: 20px;
+    }
+    .strategy-title {
+        font-weight: bold;
+        color: #E2231A;
+        margin-bottom: 10px;
+        font-size: 1.1em;
+    }
+    
+    /* Platform Guide Cards */
+    .platform-card {
+        background-color: #F8F9FA;
+        border-radius: 8px;
+        padding: 15px;
+        height: 100%;
+        border: 1px solid #EEE;
+    }
+    
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 联想集团 GEO 优化系统 (OpenClaw GUI)")
+st.title("🛡️ 联想集团 GEO 核心战略看板")
+st.caption("🚀 基于 China GEO Strategy 2.0 方法论构建 | 实时监测多平台生成式引擎表现")
 
 # --- Sidebar: Monitoring Control ---
 with st.sidebar:
@@ -139,8 +217,13 @@ with st.sidebar:
     if "is_running" not in st.session_state:
         st.session_state.is_running = False
 
+    # Status Indicator
+    status_color = "green" if st.session_state.is_running else "gray"
+    status_text = "🟢 正在监测中..." if st.session_state.is_running else "⚪ 系统待机中"
+    st.markdown(f"**当前状态:** {status_text}")
+
     if not st.session_state.is_running:
-        if st.button("🚀 开启全自动监测", use_container_width=True):
+        if st.button("🚀 开启全自动监测", use_container_width=True, type="primary"):
             if not active_providers:
                 st.error("请先设置 API 密钥！")
             else:
@@ -152,31 +235,42 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-    st.subheader("实时日志")
-    log_placeholder = st.empty()
-    if "logs" not in st.session_state:
-        st.session_state.logs = []
-    log_placeholder.code("\n".join(st.session_state.logs[-15:]) if st.session_state.logs else "等待任务启动...")
+    # UX Improvement: Collapsible Logs to reduce clutter
+    with st.expander("📜 实时系统日志", expanded=st.session_state.is_running):
+        log_placeholder = st.empty()
+        if "logs" not in st.session_state:
+            st.session_state.logs = []
+        log_placeholder.code("\n".join(st.session_state.logs[-15:]) if st.session_state.logs else "等待任务启动...")
 
 # --- Main Tabs ---
 tab1, tab2 = st.tabs(["📊 实时仪表盘", "⚙️ 系统配置"])
 
 # --- Tab 2: Configuration ---
 with tab2:
-    st.header("系统设置")
+    st.markdown("### ⚙️ 系统参数配置")
     config = load_config()
-    st.subheader("API 密钥配置")
-    for p_name, p_config in config['providers'].items():
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            st.write(f"**{p_name}**")
-        with col2:
-            new_key = st.text_input(f"{p_name} 的 API 密钥", value=p_config.get('api_key', ''), type="password", key=f"key_{p_name}")
-            config['providers'][p_name]['api_key'] = new_key
     
-    if st.button("保存配置"):
-        save_config(config)
-        st.success("配置已保存！")
+    with st.form("config_form"):
+        st.caption("请配置各家大模型的 API 密钥以开启监测。")
+        
+        # Use a more compact layout
+        cols = st.columns(2)
+        idx = 0
+        for p_name, p_config in config['providers'].items():
+            with cols[idx % 2]:
+                new_key = st.text_input(
+                    f"{p_name} API Key", 
+                    value=p_config.get('api_key', ''), 
+                    type="password", 
+                    help=f"输入 {p_name} 的 API 密钥"
+                )
+                config['providers'][p_name]['api_key'] = new_key
+            idx += 1
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.form_submit_button("💾 保存全系统配置", type="primary"):
+            save_config(config)
+            st.success("✅ 配置已成功更新！")
 
 # --- Tab 1: Dashboard ---
 with tab1:
@@ -227,34 +321,63 @@ with tab1:
         selected_intent = st.selectbox("选择要分析的意图", df['intent'].unique())
         intent_df = df[df['intent'] == selected_intent]
         
-        # 1. 意图概览指标
+        # 1. 意图概览指标与平台特性分析
         i_col1, i_col2, i_col3 = st.columns(3)
         with i_col1:
-            st.metric(f"【{selected_intent}】监测次数", len(intent_df))
+            st.metric(f"【{selected_intent}】监测样本", len(intent_df))
         with i_col2:
             i_mention_rate = (intent_df['is_mentioned'].sum() / len(intent_df)) * 100
-            st.metric("联想在该意图下的提及率", f"{i_mention_rate:.1f}%")
+            st.metric("联想在该意图下的曝光权重", f"{i_mention_rate:.1f}%")
         with i_col3:
-            i_comps_all = [item for sublist in intent_df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
-            top_comp = Counter(i_comps_all).most_common(1)[0][0] if i_comps_all else "暂无"
-            st.metric("该意图头号竞争对手", top_comp)
+            # 识别表现最好的平台
+            p_mentions = intent_df.groupby('platform')['is_mentioned'].mean().sort_values(ascending=False)
+            best_p = p_mentions.index[0] if not p_mentions.empty else "N/A"
+            st.metric("最具曝光潜力平台", best_p)
 
-        # 2. 图表排布优化
+        # 平台特性贴纸 (基于 China GEO Strategy 2.0)
+        st.write("**🔍 平台特性洞察 (GEO 2.0 映射)**")
+        p_cols = st.columns(len(intent_df['platform'].unique()))
+        platform_guides = {
+            "DeepSeek": "💼 <span style='font-weight:bold;'>商用决策导向</span><br>侧重 MECE 框架与 SWOT 分析，内容需强调商业逻辑。",
+            "Kimi": "📚 <span style='font-weight:bold;'>长文本技术导向</span><br>侧重深度技术文档与权威引用（arXiv/IEEE），内容需具备专业厚度。",
+            "Doubao": "📱 <span style='font-weight:bold;'>社交流行导向</span><br>侧重情感化表达与爆点叙事，内容需具备传播力。",
+            "Yuanbao": "🔗 <span style='font-weight:bold;'>全生态链路导向</span><br>侧重微信生态内容联动，内容需具备多点触达能力。"
+        }
+        
+        for i, p_name in enumerate(intent_df['platform'].unique()):
+            with p_cols[i % len(p_cols)]:
+                p_rate = p_mentions.get(p_name, 0) * 100
+                guide_content = platform_guides.get(p_name, '通用优化建议：增强内容 E-E-A-T 权重。')
+                
+                # UX Improvement: Card-based layout for platform guides
+                st.markdown(f"""
+                <div class="platform-card">
+                    <div style="font-size: 1.2em; font-weight: bold; color: #333; margin-bottom: 5px;">
+                        {p_name} <span style="float: right; color: #E2231A;">{p_rate:.0f}%</span>
+                    </div>
+                    <div style="font-size: 0.9em; color: #555; line-height: 1.4;">
+                        {guide_content}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # 2. 核心图表
         col_left, col_right = st.columns([1, 1])
         
         with col_left:
-            st.subheader("📊 竞对提及分布")
+            st.subheader("📊 竞对声量分布")
+            i_comps_all = [item for sublist in intent_df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
             if i_comps_all:
                 i_comp_df = pd.DataFrame(Counter(i_comps_all).most_common(10), columns=['公司', '出现次数'])
                 fig_i = px.bar(i_comp_df, x='公司', y='出现次数', color='出现次数', 
                                text_auto=True, color_continuous_scale='Reds')
-                fig_i.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)')
+                fig_i.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', height=350)
                 st.plotly_chart(fig_i, use_container_width=True)
             else:
                 st.write("该意图下暂无竞对数据")
                 
         with col_right:
-            st.subheader("🔗 优质信源分布")
+            st.subheader("🔗 优质信源画像")
             i_srcs = []
             for r in intent_df.to_dict('records'):
                 if 'sources_v2' in r and isinstance(r['sources_v2'], list):
@@ -272,32 +395,47 @@ with tab1:
                 fig_src_i = px.bar(media_counts.head(10), x='引用次数', y='媒体名', orientation='h',
                                    color='引用次数', color_continuous_scale='Viridis', text='引用次数')
                 fig_src_i.update_traces(textposition='outside')
-                fig_src_i.update_layout(yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+                fig_src_i.update_layout(yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)', height=350)
                 st.plotly_chart(fig_src_i, use_container_width=True)
             else:
                 st.write("该意图下暂无信源数据")
 
-        # 3. 策略与详情下沉
+        # 3. 策略实战与详情 (回归上下布局，确保空间充足)
         st.markdown("---")
-        strat_col, table_col = st.columns([1, 1])
         
-        with strat_col:
-            st.subheader("💡 GEO 内容优化建议")
-            if 'geo_strategy' in intent_df.columns:
-                latest_strategy = intent_df.dropna(subset=['geo_strategy']).sort_values('timestamp', ascending=False)
-                if not latest_strategy.empty:
-                    st.info(latest_strategy.iloc[0]['geo_strategy'])
-                else:
-                    st.write("暂无 AI 策略建议。")
+        # UX Improvement: Better visual hierarchy for Strategy
+        if 'geo_strategy' in intent_df.columns:
+            latest_strategy = intent_df.dropna(subset=['geo_strategy']).sort_values('timestamp', ascending=False)
+            if not latest_strategy.empty:
+                strategy_text = latest_strategy.iloc[0]['geo_strategy']
+                formatted_strategy = format_strategy_text(strategy_text)
+                st.markdown(f"""
+                <div class="strategy-box">
+                    <div class="strategy-title">💡 GEO 2.0 实战策略建议</div>
+                    <div style="color: #333; line-height: 1.6;">{formatted_strategy}</div>
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.write("历史数据暂无策略建议。")
+                st.info("暂无 AI 策略建议，请等待更多数据收集。")
+        else:
+            st.info("历史数据暂无策略建议。")
         
-        with table_col:
-            st.subheader("📑 引用信源详情")
-            if i_srcs:
-                st.dataframe(pd.DataFrame(i_srcs)[['media', 'title', 'url']].head(20), use_container_width=True)
-            else:
-                st.write("暂无详情。")
+        st.markdown("### 📑 结构化信源详情")
+        if i_srcs:
+            source_display_df = pd.DataFrame(i_srcs)[['media', 'title', 'url']]
+            st.dataframe(
+                source_display_df,
+                column_config={
+                    "media": st.column_config.TextColumn("引用媒体", width="small"),
+                    "title": st.column_config.TextColumn("内容标题", width="large"),
+                    "url": st.column_config.LinkColumn("原始链接", width="medium")
+                },
+                hide_index=True,
+                use_container_width=True,
+                height=400
+            )
+        else:
+            st.write("暂无详情。")
         
         st.markdown("---")
         st.subheader("🔥 全平台优质信源排行榜 (全意图汇总)")
