@@ -335,7 +335,14 @@ else:
     
     # Create a container for the deep dive section with a distinct background
     with st.container():
-        selected_intent = st.selectbox("选择要分析的意图", df['intent'].unique())
+        # Replace selectbox with pills for better UX
+        all_intents = df['intent'].unique()
+        selected_intent = st.pills("选择要分析的意图", all_intents, selection_mode="single", default=all_intents[0] if len(all_intents) > 0 else None)
+        
+        # Fallback if pills return None (though default is set)
+        if not selected_intent and len(all_intents) > 0:
+            selected_intent = all_intents[0]
+            
         intent_df = df[df['intent'] == selected_intent]
         
         # 1. Intent Metrics Row
