@@ -32,11 +32,17 @@ def load_config():
                 config = json.load(f)
 
     # 2. Override with Streamlit Secrets if available (Secure Cloud Deployment)
-    if hasattr(st, "secrets"):
-        if "providers" in st.secrets:
+    # Use try-except block to handle case where secrets.toml doesn't exist locally or on cloud
+    try:
+        if hasattr(st, "secrets") and "providers" in st.secrets:
             for p_name, p_secrets in st.secrets["providers"].items():
                 if p_name in config["providers"] and "api_key" in p_secrets:
                     config["providers"][p_name]["api_key"] = p_secrets["api_key"]
+    except FileNotFoundError:
+        pass # It's okay if secrets file is missing locally
+    except Exception as e:
+        # In cloud, we don't want to crash if secrets are malformed
+        print(f"Warning: Could not load secrets: {e}")
     
     return config
 
