@@ -1,7 +1,7 @@
 import os
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from api_client import GenericClient
 
 # Configuration Paths
@@ -44,8 +44,12 @@ def extract_competitors(answer):
             found.append(c)
     return list(set(found))
 
+def get_beijing_time():
+    """Get current time in Beijing (UTC+8)"""
+    return datetime.utcnow() + timedelta(hours=8)
+
 def save_result(intent_name, platform, question, answer, timestamp, strategy_analysis=None, structured_sources=None):
-    filename = f"{datetime.now().strftime('%Y%m%d')}_results.json"
+    filename = f"{get_beijing_time().strftime('%Y%m%d')}_results.json"
     filepath = os.path.join(DATA_DIR, filename)
     data = []
     if os.path.exists(filepath):
@@ -74,7 +78,7 @@ def save_result(intent_name, platform, question, answer, timestamp, strategy_ana
     return is_mentioned
 
 def run_monitoring_task():
-    print(f"▶️ Starting Monitoring Task at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"▶️ Starting Monitoring Task at: {get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')} (Beijing Time)")
     
     config = load_config()
     # Filter active providers (those with API keys)
@@ -119,7 +123,7 @@ def run_monitoring_task():
                         competitors = extract_competitors(answer)
                         structured_srcs = client.extract_structured_sources(answer)
                         strategy = client.analyze_geo_strategy(intent_label, answer, competitors)
-                        save_result(intent_label, p_name, q, answer, datetime.now().isoformat(), strategy, structured_srcs)
+                        save_result(intent_label, p_name, q, answer, get_beijing_time().isoformat(), strategy, structured_srcs)
                         print("      ✅ Saved.")
                     else:
                         print("      ❌ No answer.")

@@ -5,6 +5,7 @@ import datetime
 import sys
 import time
 from api_client import GenericClient
+from check_network import run_diagnostics
 
 # Force unbuffered output for immediate feedback
 sys.stdout.reconfigure(line_buffering=True)
@@ -400,10 +401,11 @@ def main():
         print("1. ⚡️  一键启动全平台全自动监测 (Deepseek/Kimi/Doubao/Yuanbao)")
         print("2. ▶️   手动辅助监测 (人工输入模式)")
         print("3. 📊  查看分析报告")
-        print("4. 🔑  修改/设置 API Key")
-        print("5. ❌  退出")
+        print("4. �  网络环境诊断 (新增)")
+        print("5. �🔑  修改/设置 API Key")
+        print("6. ❌  退出")
         
-        choice = input("\n请选择功能 (1-5): ")
+        choice = input("\n请选择功能 (1-6): ")
         
         if choice == '1':
             run_auto_monitor_task()
@@ -412,8 +414,10 @@ def main():
         elif choice == '3':
             generate_report()
         elif choice == '4':
-            update_api_keys()
+            run_diagnostics()
         elif choice == '5':
+            update_api_keys()
+        elif choice == '6':
             print("再见！")
             sys.exit(0)
         else:

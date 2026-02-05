@@ -3,7 +3,7 @@ import json
 import os
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 from api_client import GenericClient
 import time
 import re
@@ -123,8 +123,13 @@ def format_strategy_text(text):
     text = text.replace('\n\n', '<br>')
     return text
 
+def get_beijing_time():
+    """Get current time in Beijing (UTC+8)"""
+    return datetime.utcnow() + timedelta(hours=8)
+
 def save_result(intent_name, platform, question, answer, timestamp, strategy_analysis=None, structured_sources=None):
-    filename = f"{datetime.now().strftime('%Y%m%d')}_results.json"
+    # Use Beijing time for filename to ensure correct "day" bucket
+    filename = f"{get_beijing_time().strftime('%Y%m%d')}_results.json"
     filepath = os.path.join(DATA_DIR, filename)
     data = []
     if os.path.exists(filepath):
@@ -718,7 +723,7 @@ else:
 
 # --- Background Task Runner ---
 if st.session_state.is_running:
-    st.session_state.logs.append(f"▶️ 监测任务启动时间: {datetime.now().strftime('%H:%M:%S')}")
+    st.session_state.logs.append(f"▶️ 监测任务启动时间: {get_beijing_time().strftime('%H:%M:%S')} (北京时间)")
     
     config = load_config()
     active_providers = [(name, cfg) for name, cfg in config['providers'].items() if cfg.get('api_key')]
@@ -761,7 +766,8 @@ if st.session_state.is_running:
                     competitors = extract_competitors(answer)
                     structured_srcs = client.extract_structured_sources(answer)
                     strategy = client.analyze_geo_strategy(intent_label, answer, competitors)
-                    save_result(intent_label, p_name, q, answer, datetime.now().isoformat(), strategy, structured_srcs)
+                    # Use Beijing Time for the record timestamp
+                    save_result(intent_label, p_name, q, answer, get_beijing_time().isoformat(), strategy, structured_srcs)
                 else:
                     consecutive_failures += 1
                     if consecutive_failures >= 3: break
