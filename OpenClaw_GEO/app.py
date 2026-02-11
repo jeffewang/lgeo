@@ -783,10 +783,9 @@ if st.session_state.is_running:
                     log_placeholder.code("\n".join(st.session_state.logs[-15:]))
                     consecutive_failures += 1
                     if consecutive_failures >= 3: break
-                time.sleep(0.5)
+                time.sleep(1.0) # Increased delay to prevent resource exhaustion
             
             task_count += 1
-            # st.rerun() # REMOVED: Caused infinite loop
             
     st.session_state.is_running = False
     st.session_state.logs.append("✅ 监测任务已圆满完成！")
