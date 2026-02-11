@@ -750,8 +750,18 @@ if st.session_state.is_running:
             st.session_state.logs.append(f"📱 监测平台: {p_name} | 意图: {intent_label}")
             log_placeholder.code("\n".join(st.session_state.logs[-15:]))
             
-            for q in questions:
+            for i, q in enumerate(questions):
                 if not st.session_state.is_running: break
+                
+                # Update logs with current question
+                current_log = f"[{i+1}/{len(questions)}] ❓ {q[:30]}..."
+                # Replace the last log if it was also a question status to avoid spamming
+                if len(st.session_state.logs) > 0 and "❓" in st.session_state.logs[-1]:
+                    st.session_state.logs[-1] = current_log
+                else:
+                    st.session_state.logs.append(current_log)
+                log_placeholder.code("\n".join(st.session_state.logs[-15:]))
+
                 answer = client.chat([{"role": "user", "content": q}])
                 if answer:
                     consecutive_failures = 0
@@ -761,9 +771,16 @@ if st.session_state.is_running:
                     # Use Beijing Time for the record timestamp
                     save_result(intent_label, p_name, q, answer, get_beijing_time().isoformat(), strategy, structured_srcs)
                     
+                    # Log success
+                    mention_status = "✅ 提及" if ("联想" in answer or "Lenovo" in answer or "lenovo" in answer) else "❌ 未提及"
+                    st.session_state.logs.append(f"   ↳ {mention_status} | 竞品: {', '.join(competitors) if competitors else '无'}")
+                    log_placeholder.code("\n".join(st.session_state.logs[-15:]))
+                    
                     # 关键：实时刷新 UI 展现最新数据 (不再使用 st.rerun)
                     render_dashboard(metrics_placeholder)
                 else:
+                    st.session_state.logs.append(f"   ⚠️ 请求失败，重试中...")
+                    log_placeholder.code("\n".join(st.session_state.logs[-15:]))
                     consecutive_failures += 1
                     if consecutive_failures >= 3: break
                 time.sleep(0.5)
