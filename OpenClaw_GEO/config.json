@@ -5,20 +5,20 @@
     "Deepseek": {
       "enabled": true,
       "base_url": "https://api.deepseek.com",
-      "model": "deepseek-chat",
+      "model": "deepseek-reasoner",
       "api_key": "sk-3fa2836db4f64c7aa789c4c70aac11b7"
     },
     "Kimi": {
       "enabled": true,
       "base_url": "https://api.moonshot.cn/v1",
       "model": "moonshot-v1-8k",
-      "api_key": "sk-C2tKHdJ3jDF5fZcDoi2tFvJA2EnWa1yhwPO9hYKpfhFk4LRz"
+      "api_key": "sk-WL9taKfQ9M1z4juxk0rKme5luRBnXeJdTKJXJLU6qIPfBZzE"
     },
     "Doubao": {
       "enabled": true,
       "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-      "model": "ep-202406040000-00000",
-      "api_key": "ep-20260203085849-zv9bq"
+      "model": "ep-20260204110146-rbklv",
+      "api_key": "4bce99dd-0e86-4e49-a878-f7cb0c148f2a"
     },
     "Yuanbao": {
       "enabled": true,

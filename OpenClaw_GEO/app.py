@@ -385,166 +385,158 @@ with st.sidebar:
 # Only show Dashboard, remove Configuration tab from UI for security
 st.markdown("### 📊 实时监测仪表盘")
 
-# --- Dashboard Logic ---
-files = [f for f in os.listdir(DATA_DIR) if f.endswith('_results.json')]
-all_data = []
-last_updated = None
+# Placeholder for real-time metrics updates
+metrics_placeholder = st.empty()
 
-# Sort files to get the latest one
-files.sort(reverse=True)
+def render_dashboard(placeholder):
+    files = [f for f in os.listdir(DATA_DIR) if f.endswith('_results.json')]
+    all_data = []
+    last_updated = None
 
-if files:
-    # Extract timestamp from the latest file name (YYYYMMDD_results.json)
-    # Or better, look at the modification time or data inside
-    try:
-        # Assuming filename format is YYYYMMDD_results.json, but we want precise time
-        # Let's read the latest file to get the last timestamp
-        with open(os.path.join(DATA_DIR, files[0]), 'r', encoding='utf-8') as f:
-            latest_file_data = json.load(f)
-            if latest_file_data:
-                # Sort by timestamp in descending order
-                latest_entry = sorted(latest_file_data, key=lambda x: x['timestamp'], reverse=True)[0]
-                last_updated = datetime.fromisoformat(latest_entry['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
-    except Exception as e:
-        pass
+    # Sort files to get the latest one
+    files.sort(reverse=True)
 
-for f in files:
-    with open(os.path.join(DATA_DIR, f), 'r', encoding='utf-8') as file:
-        all_data.extend(json.load(file))
+    if files:
+        try:
+            # Let's read the latest file to get the last timestamp
+            with open(os.path.join(DATA_DIR, files[0]), 'r', encoding='utf-8') as f:
+                latest_file_data = json.load(f)
+                if latest_file_data:
+                    # Sort by timestamp in descending order
+                    latest_entry = sorted(latest_file_data, key=lambda x: x['timestamp'], reverse=True)[0]
+                    last_updated = datetime.fromisoformat(latest_entry['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception as e:
+            pass
 
-if last_updated:
-    st.caption(f"🕒 数据最后更新于: {last_updated}")
+    for f in files:
+        with open(os.path.join(DATA_DIR, f), 'r', encoding='utf-8') as file:
+            try:
+                all_data.extend(json.load(file))
+            except:
+                pass # Skip bad files
 
-if not all_data:
-    st.info("暂无监测数据，请先在左侧启动监测任务。")
-else:
-    df = pd.DataFrame(all_data)
-    
-    # Overview Cards
-    # Use a 4-column layout for high-level metrics (Desktop)
-    # For mobile, we use a custom HTML grid to ensure 2x2 layout
-    
-    # Calculate metrics first
-    total_count = len(df)
-    mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
-    intent_count = df['intent'].nunique()
-    all_comps = [item for sublist in df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
-    top_comp = Counter(all_comps).most_common(1)[0][0] if all_comps else "无"
-    
-    # Desktop Layout (Streamlit Native)
-    # Wrap in a container that will be hidden on mobile
-    # NOTE: Streamlit's st.container() doesn't add a class we can target easily.
-    # But content inside it is rendered sequentially.
-    # We will use a different approach: Conditional Rendering based on a checkbox hack or just accept duplicate calculation.
-    # BETTER APPROACH: Use st.empty() or just render normally and use strict CSS targeting.
-    
-    # We wrap the desktop metrics in a specific div that we CAN target
-    st.markdown('<div class="desktop-metrics-wrapper">', unsafe_allow_html=True)
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("总监测次数", total_count, delta=f"+{total_count} New")
-    with m2:
-        st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
-    with m3:
-        st.metric("覆盖意图数", intent_count)
-    with m4:
-        st.metric("最大竞品", top_comp)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with placeholder.container():
+        if last_updated:
+            st.caption(f"🕒 数据最后更新于: {last_updated}")
 
-    # CSS to hide the desktop wrapper on mobile
-    st.markdown("""
-    <style>
-    @media only screen and (max-width: 600px) {
-        /* This targets the div we just added */
-        .desktop-metrics-wrapper {
-            display: none !important;
-        }
-        
-        /* 
-           CRITICAL: Streamlit puts the markdown div BEFORE and AFTER the columns, 
-           but the columns themselves are siblings, not children.
-           So the wrapper above DOES NOT WORK for hiding the columns in between.
-           
-           SOLUTION: We must rely on targeting the metrics themselves as we did before.
-           If they are still showing, it means the CSS selector `div[data-testid="metric-container"]` 
-           is not matching or being overridden.
-           
-           Let's try a more aggressive selector targeting the stMetric value directly's parent.
-        */
-        
-        /* Hide any element that looks like a Streamlit metric on mobile */
-        [data-testid="stMetric"] {
-            display: none !important;
-        }
-    }
-    
-    @media only screen and (min-width: 601px) {
-        /* On desktop, make sure they are visible */
-        [data-testid="stMetric"] {
-            display: block !important;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Mobile Layout (Custom HTML/CSS)
-    st.markdown(f"""
-    <div class="mobile-only mobile-metrics-grid">
-        <div class="mobile-metric-card">
-            <div class="mobile-metric-label">总监测次数</div>
-            <div class="mobile-metric-value">{total_count}</div>
-            <div class="mobile-metric-delta">+{total_count} New</div>
-        </div>
-        <div class="mobile-metric-card">
-            <div class="mobile-metric-label">联想提及率</div>
-            <div class="mobile-metric-value">{mention_rate:.1f}%</div>
-            <div class="mobile-metric-delta">核心指标</div>
-        </div>
-        <div class="mobile-metric-card">
-            <div class="mobile-metric-label">覆盖意图数</div>
-            <div class="mobile-metric-value">{intent_count}</div>
-        </div>
-        <div class="mobile-metric-card">
-            <div class="mobile-metric-label">最大竞品</div>
-            <div class="mobile-metric-value">{top_comp}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        if not all_data:
+            st.info("暂无监测数据，请先在左侧启动监测任务。")
+            return None
+        else:
+            df = pd.DataFrame(all_data)
             
-    st.markdown("---")
-
-    # Top Level Charts (Side by Side)
-    c1, c2 = st.columns([3, 2])
-    with c1:
-        st.subheader("📊 各平台提及率对比")
-        platform_stats = df.groupby('platform')['is_mentioned'].mean().reset_index()
-        platform_stats['is_mentioned'] *= 100
-        fig = px.bar(platform_stats, x='platform', y='is_mentioned', 
-                        labels={'platform': '监测平台', 'is_mentioned': '提及率 (%)'},
-                        color='is_mentioned', color_continuous_scale='Blues')
-        # Responsive chart layout
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)', 
-            height=300 if st.session_state.get('is_mobile', False) else 400,
-            margin=dict(l=10, r=10, t=30, b=10),
-            autosize=True
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'responsive': True, 'displayModeBar': False})
-        
-    with c2:
-        st.subheader("🍩 热门竞品份额")
-        comp_df = pd.DataFrame(Counter(all_comps).most_common(8), columns=['公司', '次数'])
-        fig2 = px.pie(comp_df, values='次数', names='公司', hole=0.4)
-        # Responsive chart layout with adjusted legend
-        fig2.update_layout(
-            height=300 if st.session_state.get('is_mobile', False) else 400, 
-            showlegend=True, 
-            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-            margin=dict(l=10, r=10, t=30, b=10),
-            autosize=True
-        )
-        st.plotly_chart(fig2, use_container_width=True, config={'responsive': True, 'displayModeBar': False})
+            # Overview Cards
+            # Use a 4-column layout for high-level metrics (Desktop)
+            # For mobile, we use a custom HTML grid to ensure 2x2 layout
             
+            # Calculate metrics first
+            total_count = len(df)
+            mention_rate = (df['is_mentioned'].sum() / len(df)) * 100
+            intent_count = df['intent'].nunique()
+            all_comps = [item for sublist in df['competitors'].tolist() if isinstance(sublist, list) for item in sublist]
+            top_comp = Counter(all_comps).most_common(1)[0][0] if all_comps else "无"
+            
+            # Desktop Layout (Streamlit Native)
+            st.markdown('<div class="desktop-metrics-wrapper">', unsafe_allow_html=True)
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("总监测次数", total_count, delta=f"+{total_count} New")
+            with m2:
+                st.metric("联想提及率", f"{mention_rate:.1f}%", delta="核心指标")
+            with m3:
+                st.metric("覆盖意图数", intent_count)
+            with m4:
+                st.metric("最大竞品", top_comp)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # CSS to hide the desktop wrapper on mobile
+            st.markdown("""
+            <style>
+            @media only screen and (max-width: 600px) {
+                /* This targets the div we just added */
+                .desktop-metrics-wrapper {
+                    display: none !important;
+                }
+                
+                /* Hide any element that looks like a Streamlit metric on mobile */
+                [data-testid="stMetric"] {
+                    display: none !important;
+                }
+            }
+            
+            @media only screen and (min-width: 601px) {
+                /* On desktop, make sure they are visible */
+                [data-testid="stMetric"] {
+                    display: block !important;
+                }
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # Mobile Layout (Custom HTML/CSS)
+            st.markdown(f"""
+            <div class="mobile-only mobile-metrics-grid">
+                <div class="mobile-metric-card">
+                    <div class="mobile-metric-label">总监测次数</div>
+                    <div class="mobile-metric-value">{total_count}</div>
+                    <div class="mobile-metric-delta">+{total_count} New</div>
+                </div>
+                <div class="mobile-metric-card">
+                    <div class="mobile-metric-label">联想提及率</div>
+                    <div class="mobile-metric-value">{mention_rate:.1f}%</div>
+                    <div class="mobile-metric-delta">核心指标</div>
+                </div>
+                <div class="mobile-metric-card">
+                    <div class="mobile-metric-label">覆盖意图数</div>
+                    <div class="mobile-metric-value">{intent_count}</div>
+                </div>
+                <div class="mobile-metric-card">
+                    <div class="mobile-metric-label">最大竞品</div>
+                    <div class="mobile-metric-value">{top_comp}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+                    
+            st.markdown("---")
+
+            # Top Level Charts (Side by Side)
+            c1, c2 = st.columns([3, 2])
+            with c1:
+                st.subheader("📊 各平台提及率对比")
+                platform_stats = df.groupby('platform')['is_mentioned'].mean().reset_index()
+                platform_stats['is_mentioned'] *= 100
+                fig = px.bar(platform_stats, x='platform', y='is_mentioned', 
+                                labels={'platform': '监测平台', 'is_mentioned': '提及率 (%)'},
+                                color='is_mentioned', color_continuous_scale='Blues')
+                # Responsive chart layout
+                fig.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)', 
+                    height=300 if st.session_state.get('is_mobile', False) else 400,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    autosize=True
+                )
+                st.plotly_chart(fig, use_container_width=True, config={'responsive': True, 'displayModeBar': False})
+                
+            with c2:
+                st.subheader("🍩 热门竞品份额")
+                comp_df = pd.DataFrame(Counter(all_comps).most_common(8), columns=['公司', '次数'])
+                fig2 = px.pie(comp_df, values='次数', names='公司', hole=0.4)
+                # Responsive chart layout with adjusted legend
+                fig2.update_layout(
+                    height=300 if st.session_state.get('is_mobile', False) else 400, 
+                    showlegend=True, 
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    autosize=True
+                )
+                st.plotly_chart(fig2, use_container_width=True, config={'responsive': True, 'displayModeBar': False})
+            
+            return df
+
+# Initial Render
+df = render_dashboard(metrics_placeholder)
+
+if df is not None:
     # --- 意图深度透视 ---
     st.markdown("---")
     st.header("🎯 意图深度透视")
@@ -768,15 +760,18 @@ if st.session_state.is_running:
                     strategy = client.analyze_geo_strategy(intent_label, answer, competitors)
                     # Use Beijing Time for the record timestamp
                     save_result(intent_label, p_name, q, answer, get_beijing_time().isoformat(), strategy, structured_srcs)
+                    
+                    # 关键：实时刷新 UI 展现最新数据 (不再使用 st.rerun)
+                    render_dashboard(metrics_placeholder)
                 else:
                     consecutive_failures += 1
                     if consecutive_failures >= 3: break
                 time.sleep(0.5)
             
             task_count += 1
-            # 关键：每完成一个意图，刷新一次 UI 展现最新数据
-            st.rerun()
+            # st.rerun() # REMOVED: Caused infinite loop
             
     st.session_state.is_running = False
     st.session_state.logs.append("✅ 监测任务已圆满完成！")
+    # Only rerun once at the very end to reset UI state
     st.rerun()

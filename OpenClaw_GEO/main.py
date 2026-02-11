@@ -2,13 +2,21 @@
 import json
 import os
 import datetime
+from datetime import timedelta
 import sys
 import time
+import threading
+import concurrent.futures
 from api_client import GenericClient
 from check_network import run_diagnostics
+from analysis_engine import DeepInsightEngine
 
 # Force unbuffered output for immediate feedback
 sys.stdout.reconfigure(line_buffering=True)
+
+# Global Lock for file writing to prevent race conditions
+FILE_LOCK = threading.Lock()
+PRINT_LOCK = threading.Lock()
 
 import re
 from collections import Counter
@@ -100,9 +108,17 @@ def extract_sources_v2(answer):
             
     return sources
 
-def save_result(intent_name, platform, question, answer, timestamp):
-    filename = f"{datetime.datetime.now().strftime('%Y%m%d')}_results.json"
+def get_beijing_time():
+    """Get current time in Beijing (UTC+8)"""
+    return datetime.datetime.utcnow() + timedelta(hours=8)
+
+def save_result(intent_name, platform, question, result_obj, timestamp):
+    # Use Beijing time for filename
+    filename = f"{get_beijing_time().strftime('%Y%m%d')}_results.json"
     filepath = os.path.join(DATA_DIR, filename)
+    
+    answer = result_obj.get('content', '')
+    reasoning = result_obj.get('reasoning', '')
     
     data = []
     if os.path.exists(filepath):
@@ -112,12 +128,31 @@ def save_result(intent_name, platform, question, answer, timestamp):
             except:
                 data = []
     
-    # Check for Lenovo keywords
+    # Check for Lenovo keywords in answer and reasoning
     is_mentioned = "联想" in answer or "Lenovo" in answer or "lenovo" in answer
+    mentioned_in_reasoning = "联想" in reasoning or "Lenovo" in reasoning or "lenovo" in reasoning
     
-    # Extract competitors and sources
-    competitors = extract_competitors(answer)
-    sources_v2 = extract_sources_v2(answer)
+    # Extract competitors and sources from BOTH answer and reasoning
+    competitors_answer = extract_competitors(answer)
+    competitors_reasoning = extract_competitors(reasoning)
+    all_competitors = list(set(competitors_answer + competitors_reasoning))
+    
+    sources_answer = extract_sources_v2(answer)
+    sources_reasoning = extract_sources_v2(reasoning)
+    # Combine source lists carefully (dictionaries cannot be put into set directly)
+    # Strategy: Use URL as unique key
+    seen_urls = set()
+    all_sources = []
+    
+    for s in sources_answer + sources_reasoning:
+        # Use URL as key, but distinguish text-based references by media name
+        key = s['url']
+        if key == "参考回答文本":
+            key = f"{key}_{s['media']}"
+            
+        if key not in seen_urls:
+            all_sources.append(s)
+            seen_urls.add(key)
     
     record = {
         "timestamp": timestamp,
@@ -125,18 +160,27 @@ def save_result(intent_name, platform, question, answer, timestamp):
         "platform": platform,
         "question": question,
         "answer": answer,
+        "reasoning": reasoning,
         "is_mentioned": is_mentioned,
-        "competitors": competitors,
-        "sources_v2": sources_v2,
-        "answer_length": len(answer)
+        "mentioned_in_reasoning": mentioned_in_reasoning,
+        "competitors": all_competitors,
+        "sources": [s['media'] for s in all_sources], # Keep backward compatibility for 'sources' field which was list of strings
+        "sources_v2": all_sources, # Add new structured field
+        "sources_breakdown": {
+            "answer": sources_answer,
+            "reasoning": sources_reasoning
+        },
+        "answer_length": len(answer),
+        "reasoning_length": len(reasoning)
     }
     
     data.append(record)
     
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with FILE_LOCK:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
     
-    return is_mentioned
+    return is_mentioned, mentioned_in_reasoning
 
 def generate_report():
     # Find all result files
@@ -153,26 +197,45 @@ def generate_report():
     # Calculate stats
     total = len(all_records)
     mentioned = sum(1 for r in all_records if r['is_mentioned'])
+    mentioned_cot = sum(1 for r in all_records if r.get('mentioned_in_reasoning') and not r['is_mentioned'])
     rate = (mentioned / total * 100) if total > 0 else 0
     
     print("\n" + "="*60)
     print(f"📊  GEO 深度监测报告 (共 {total} 条数据)")
     print("="*60)
     print(f"✅  联想总体提及率: {rate:.1f}% ({mentioned}/{total})")
+    if mentioned_cot > 0:
+        print(f"🤔  (另有 {mentioned_cot} 次仅在推理过程中提及，未最终输出)")
     print("-" * 60)
     
-    # Get all platforms
-    platforms = set(r['platform'] for r in all_records)
+    # Get all platforms from config to show full status
+    config = load_config()
+    all_providers = config.get('providers', {}).keys()
+    
+    # Existing data platforms
+    data_platforms = set(r['platform'] for r in all_records)
+    
+    # Merge and sort
+    platforms = sorted(list(set(list(all_providers) + list(data_platforms))))
     
     for p in platforms:
         p_recs = [r for r in all_records if r['platform'] == p]
         p_total = len(p_recs)
-        if p_total == 0: continue
+        
+        print(f"\n📱 平台: 【{p}】")
+        
+        if p_total == 0:
+             print("    ⚠️  (暂无数据 - 可能未配置 Key 或请求失败)")
+             print("-" * 30)
+             continue
         
         p_ment = sum(1 for r in p_recs if r['is_mentioned'])
+        p_cot = sum(1 for r in p_recs if r.get('mentioned_in_reasoning') and not r['is_mentioned'])
         p_rate = (p_ment / p_total * 100)
         
-        print(f"\n📱 平台: 【{p}】 (提及率: {p_rate:.1f}%)")
+        print(f"    - 提及率: {p_rate:.1f}% ({p_ment}/{p_total})")
+        if p_cot > 0:
+            print(f"    - 推理中提及但被过滤: {p_cot} 次")
         print("-" * 30)
         
         # 1. Competitor Analysis for this platform
@@ -293,24 +356,26 @@ def run_auto_monitor_task():
                 print(f"   ➡️ 提问 ({idx+1}/{len(questions)}): {q}")
                 
                 # Simple retry logic
-                answer = None
-                for attempt in range(2):
-                    answer = client.chat([{"role": "user", "content": q}])
-                    if answer:
+                result = None
+                for _ in range(3):
+                    result = client.chat([{"role": "user", "content": q}])
+                    if result:
                         break
-                    time.sleep(1)
+                    time.sleep(2)
                 
-                if not answer:
-                    print(f"   ❌ {p_name} 响应失败，跳过此题。")
+                if not result:
+                    print("   ❌  提问失败，跳过。")
                     continue
                     
                 timestamp = datetime.datetime.now().isoformat()
-                mentioned = save_result(intent_label, p_name, q, answer, timestamp)
+                mentioned, mentioned_in_cot = save_result(intent_label, p_name, q, result, timestamp)
                 
                 if mentioned:
-                    print("      ✅ 发现提及！")
+                    print("      ✅  发现提及！")
+                elif mentioned_in_cot:
+                     print("      🤔  仅在推理思考中提及 (未输出到结果)")
                 else:
-                    print("      ❌ 未提及")
+                    print("      ❌  未提及")
                 
                 time.sleep(0.5)
             
@@ -401,11 +466,12 @@ def main():
         print("1. ⚡️  一键启动全平台全自动监测 (Deepseek/Kimi/Doubao/Yuanbao)")
         print("2. ▶️   手动辅助监测 (人工输入模式)")
         print("3. 📊  查看分析报告")
-        print("4. �  网络环境诊断 (新增)")
-        print("5. �🔑  修改/设置 API Key")
-        print("6. ❌  退出")
+        print("4. 🧠  深度洞察分析 (v2.3 新功能)")
+        print("5. 🔍  网络环境诊断")
+        print("6. 🔑  修改/设置 API Key")
+        print("7. ❌  退出")
         
-        choice = input("\n请选择功能 (1-6): ")
+        choice = input("\n请选择功能 (1-7): ")
         
         if choice == '1':
             run_auto_monitor_task()
@@ -414,10 +480,13 @@ def main():
         elif choice == '3':
             generate_report()
         elif choice == '4':
-            run_diagnostics()
+            engine = DeepInsightEngine()
+            engine.run()
         elif choice == '5':
-            update_api_keys()
+            run_diagnostics()
         elif choice == '6':
+            update_api_keys()
+        elif choice == '7':
             print("再见！")
             sys.exit(0)
         else:

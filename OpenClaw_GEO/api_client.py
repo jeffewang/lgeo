@@ -2,6 +2,7 @@ import json
 import urllib.request
 import urllib.error
 import time
+import ssl
 
 class GenericClient:
     def __init__(self, provider_name, config):
@@ -9,6 +10,11 @@ class GenericClient:
         self.api_key = config.get('api_key', '')
         self.base_url = config.get('base_url', '')
         self.model = config.get('model', '')
+        
+        # SSL Context that ignores certificate verification (fixes common local Python issues)
+        self.ssl_ctx = ssl.create_default_context()
+        self.ssl_ctx.check_hostname = False
+        self.ssl_ctx.verify_mode = ssl.CERT_NONE
         
         # Adjust base_url if needed (append /chat/completions if not present and not ending with v1/v3 root)
         # Most providers expect base_url to be the root, and client appends /chat/completions
@@ -51,18 +57,21 @@ class GenericClient:
         req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
         
         try:
-            # 缩短超时时间至 15s，防止一个平台卡死导致后面全排不上队
-            with urllib.request.urlopen(req, timeout=15) as response:
+            # 增加超时时间至 120s，以适配 Deepseek R1 等推理模型
+            with urllib.request.urlopen(req, context=self.ssl_ctx, timeout=120) as response:
                 result = json.loads(response.read().decode('utf-8'))
                 if 'choices' in result and len(result['choices']) > 0:
-                    return result['choices'][0]['message']['content']
+                    message = result['choices'][0]['message']
+                    content = message.get('content', '')
+                    reasoning = message.get('reasoning_content', '') # Capture Deepseek reasoning
+                    return {'content': content, 'reasoning': reasoning}
                 else:
                     print(f"      ⚠️ {self.provider_name} 返回格式异常: {result}")
                     return None
         except urllib.error.URLError as e:
             # 处理超时错误
             if isinstance(e.reason, time.socket.timeout) or "timed out" in str(e.reason):
-                print(f"      ❌ {self.provider_name} 请求超时 (15s)，自动跳过。")
+                print(f"      ❌ {self.provider_name} 请求超时 (120s)，自动跳过。")
             else:
                 print(f"      ❌ {self.provider_name} 连接失败: {str(e.reason)}")
             return None
@@ -95,10 +104,11 @@ class GenericClient:
         messages = [{"role": "user", "content": prompt}]
         response = self.chat(messages, temperature=1.0)
         
-        if response:
-            questions = [line.strip() for line in response.split('\n') if line.strip() and not line[0].isdigit()]
+        if response and response.get('content'):
+            raw_text = response['content']
+            questions = [line.strip() for line in raw_text.split('\n') if line.strip() and not line[0].isdigit()]
             if not questions:
-                questions = [line.strip().lstrip('0123456789. ') for line in response.split('\n') if line.strip()]
+                questions = [line.strip().lstrip('0123456789. ') for line in raw_text.split('\n') if line.strip()]
             return questions[:count]
         return []
 
