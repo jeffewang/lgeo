@@ -31,9 +31,9 @@ jobs:
         KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
         DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
         YUANBAO_API_KEY: ${{ secrets.YUANBAO_API_KEY }}
+        PYTHONPATH: ${{ github.workspace }}/OpenClaw_GEO
       run: |
-        cd OpenClaw_GEO
-        python run_monitor.py
+        python OpenClaw_GEO/run_monitor.py
 
     - name: Commit and Push Data
       run: |

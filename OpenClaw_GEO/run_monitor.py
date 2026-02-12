@@ -117,20 +117,44 @@ def run_monitoring_task():
             for q in questions:
                 print(f"      Q: {q[:30]}...")
                 try:
-                    answer = client.chat([{"role": "user", "content": q}])
-                    if answer:
+                    response = client.chat([{"role": "user", "content": q}])
+                    if response:
                         consecutive_failures = 0
+                        
+                        # Extract content from response (it might be a dict or string)
+                        answer = ""
+                        reasoning = ""
+                        if isinstance(response, dict):
+                            answer = response.get('content', '')
+                            reasoning = response.get('reasoning', '')
+                        elif isinstance(response, str):
+                            answer = response
+                            
+                        if not answer:
+                            print("      ❌ Empty answer content.")
+                            consecutive_failures += 1
+                            continue
+
                         competitors = extract_competitors(answer)
                         structured_srcs = client.extract_structured_sources(answer)
                         strategy = client.analyze_geo_strategy(intent_label, answer, competitors)
+                        
+                        # Note: save_result might need update if we want to save reasoning too, 
+                        # but for now we keep it simple to fix the crash.
+                        # If we want to save reasoning, we should update save_result signature or pass it in answer?
+                        # run_monitor.py's save_result is different from main.py's save_result.
+                        # Let's keep it compatible with existing run_monitor.py save_result for now.
+                        
                         save_result(intent_label, p_name, q, answer, get_beijing_time().isoformat(), strategy, structured_srcs)
                         print("      ✅ Saved.")
                     else:
-                        print("      ❌ No answer.")
+                        print("      ❌ No response.")
                         consecutive_failures += 1
                         if consecutive_failures >= 3: break
                 except Exception as e:
                     print(f"      ❌ Error: {e}")
+                    import traceback
+                    traceback.print_exc()
                     consecutive_failures += 1
                 
                 time.sleep(1) # Polite delay

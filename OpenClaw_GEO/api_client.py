@@ -135,7 +135,10 @@ class GenericClient:
         """
         
         messages = [{"role": "user", "content": prompt}]
-        return self.chat(messages, temperature=0.7)
+        response = self.chat(messages, temperature=0.7)
+        if isinstance(response, dict):
+            return response.get('content', '')
+        return response
 
     def extract_structured_sources(self, answer):
         """
@@ -150,7 +153,7 @@ class GenericClient:
         
         JSON 格式要求：
         [
-          {{"title": "文章标题或描述", "url": "完整链接", "media": "媒体名称/域名"}}
+        {{ "title": "文章标题或描述", "url": "完整链接", "media": "媒体名称/域名" }}
         ]
         
         注意：只需返回 JSON，不要任何解释。
@@ -159,13 +162,19 @@ class GenericClient:
         messages = [{"role": "user", "content": prompt}]
         response = self.chat(messages, temperature=0.3)
         
-        if response:
+        content = ""
+        if isinstance(response, dict):
+            content = response.get('content', '')
+        elif isinstance(response, str):
+            content = response
+            
+        if content:
             try:
                 # Find JSON content in case there's markdown wrap
-                start = response.find('[')
-                end = response.rfind(']') + 1
+                start = content.find('[')
+                end = content.rfind(']') + 1
                 if start != -1 and end != -1:
-                    return json.loads(response[start:end])
+                    return json.loads(content[start:end])
             except:
                 pass
         return []
