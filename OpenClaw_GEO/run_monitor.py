@@ -2,6 +2,12 @@ import os
 import json
 import time
 from datetime import datetime, timedelta
+import sys
+
+# Ensure modules in the current directory can be found when running from root
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
 from api_client import GenericClient
 
 # Configuration Paths
