@@ -736,6 +736,9 @@ if st.session_state.is_running:
         
         if qs:
             st.session_state.logs.append(f"      ✅ 已生成 {len(qs)} 个问题")
+            # Show top 3 examples immediately
+            for idx, q_example in enumerate(qs[:3]):
+                st.session_state.logs.append(f"         • {q_example[:20]}...")
         else:
             st.session_state.logs.append(f"      ⚠️ 生成失败，使用默认问题集")
         log_placeholder.code("\n".join(st.session_state.logs[-15:]))
