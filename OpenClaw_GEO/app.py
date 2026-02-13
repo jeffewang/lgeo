@@ -728,7 +728,18 @@ if st.session_state.is_running:
     client = GenericClient(gen_name, gen_cfg)
     intent_questions = {}
     for intent in config['intents']:
+        # Log question generation progress
+        st.session_state.logs.append(f"   ⏳ 正在为【{intent['label']}】生成问题...")
+        log_placeholder.code("\n".join(st.session_state.logs[-15:]))
+        
         qs = client.generate_questions(intent['label'], intent['keywords'], count=30)
+        
+        if qs:
+            st.session_state.logs.append(f"      ✅ 已生成 {len(qs)} 个问题")
+        else:
+            st.session_state.logs.append(f"      ⚠️ 生成失败，使用默认问题集")
+        log_placeholder.code("\n".join(st.session_state.logs[-15:]))
+        
         intent_questions[intent['label']] = qs if qs else intent.get('questions', [])[:30]
     
     # 2. Main Loop
